@@ -1,0 +1,7 @@
+   -Intrucciones de la versión 0.0.1-
+
+-Movimiento
+Presiona W, A, S, D para moverte en el laberinto
+
+-Objetivo
+Llega al circuito para reparar al robotito (La meta)
