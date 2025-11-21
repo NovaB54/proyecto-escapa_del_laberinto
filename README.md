@@ -1,1 +1,1 @@
-Proyecto de Introducción a la Programación de Bruno Barrantes e Isaac Arce.
+Proyecto II de Introducción a la Programación de Bruno Barrantes e Isaac Arce.
