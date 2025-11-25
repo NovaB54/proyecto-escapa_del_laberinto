@@ -11,17 +11,21 @@ BGC = (255, 255, 255)
 COLOR_TEXTO = (20, 20, 20)
 
 MAPA = [
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 0, 1, 0, 1, 1, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 1, 1, 0, 1, 1, 1, 0],
-    [0, 0, 0, 0, 0, 0, 1, 0],
-    [1, 1, 1, 0, 1, 0, 1, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0],
-    [0, 1, 1, 1, 1, 1, 1, 'E']
+    [0,0, 0, 0, 0, 0, 0, 0, 0,1],
+    [0,1, 0, 1, 0, 1, 1, 1, 0,1],
+    [0,0, 0, 0, 0, 0, 0, 0, 0,1],
+    [1,0, 1, 1, 0, 1, 1, 1, 0,1],
+    [1,0, 0, 0, 0, 0, 0, 1, 0,1],
+    [1,1, 1, 1, 0, 1, 0, 1, 0,1],
+    [1,0, 0, 0, 0, 1, 0, 0, 0,1],
+    [1,0, 1, 0, 1, 1, 1, 1, 0,1],
+    [1,0, 0, 0, 0, 'E', 0, 0, 0,1],
+    [1,1, 1, 1, 1, 1, 1, 1, 1,1]
 ]
 
 POSICION_INICIAL = [0, 0] 
+
+cantidad_cazadores = 3
 
 RUTAS_IMAGENES = {
     0: 'assets/path.png',
@@ -377,7 +381,7 @@ class Juego:
         self.jugador = Jugador(inicio, ancho_celda, alto_celda, self.gestor_recursos)
         self.cazadores = []
         
-        self.inicializar_cazadores(2)
+        self.inicializar_cazadores(cantidad_cazadores)
         
         self.fuente_pequena = pygame.font.Font(None, 24)
         self.fuente_grande = pygame.font.Font(None, 74)
@@ -438,7 +442,7 @@ class Juego:
         self.juego_terminado = False
         self.victoria = False
         self.jugador.reiniciar()
-        self.inicializar_cazadores(2)
+        self.inicializar_cazadores(cantidad_cazadores)
             
     def dibujar_texto(self, superficie, texto, fuente, color, centro_x, centro_y):
         texto_superficie = fuente.render(texto, True, color)
