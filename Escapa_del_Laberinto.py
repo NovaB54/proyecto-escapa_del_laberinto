@@ -82,7 +82,7 @@ class Mapa:
             linea=""
             for casilla in fila:
                 letra=casilla.__class__.__name__[0] #con esta variable se agarra la primera letra de las clases, Camino, entonces toma C
-                linea+=letra+""
+                linea+=letra+" "
             print(linea)
 
 #clase Entidad para agregar jugador y cazadores
@@ -94,7 +94,7 @@ class Entidad:
         self.mapa=mapa
     
     def puedeMover(self, filanew, columnanew):
-        if not self.mapa.dentroDeLimite(filanew, columnanew):
+        if not self.mapa.dentroDeLimites(filanew, columnanew):
             return False
         return True
     
@@ -102,7 +102,7 @@ class Entidad:
         filanew=self.fila+nfilas
         columnanew=self.columna+ncolumnas
 
-        if self.puedeMoverA(filanew, columnanew):
+        if self.puedeMover(filanew, columnanew):
             self.fila=filanew
             self.columna=columnanew
 
@@ -179,7 +179,7 @@ class Cazador(Entidad):
     def __init__(self, fila, columna, mapa):
         super().__init__(fila, columna, mapa)
 
-    def puedeMoverA(self, nuevaFila, nuevaColumna):
+    def puedeMover(self, nuevaFila, nuevaColumna):
         if not self.mapa.dentroDeLimites(nuevaFila, nuevaColumna):
             return False
 
