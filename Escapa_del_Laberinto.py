@@ -9,9 +9,8 @@ import random
 
 class Terreno:
     def __init__(self, fila, columna):
-
-        self.fila = fila
-        self.columna = columna
+        self.fila=fila
+        self.columna=columna
 
     def permiteJugador(self):
         return False
@@ -50,9 +49,9 @@ class Tunel(Terreno):
         super().__init__(fila, columna)
     
     def permiteJugador(self):
-        return False
+        return True
 
-#Clase Mapa para generar la matriz laberinto
+#Clase Mapa para generar la matriz del laberinto
 
 class Mapa:
     def __init__(self, filas=10, columnas=10):
@@ -81,7 +80,8 @@ class Mapa:
         for fila in self.matriz:
             linea=""
             for casilla in fila:
-                letra=casilla.__class__.__name__[0]
+                letra=casilla.__class__.__name__[0] #Con esta variable se agarra la primera letra de las clases, Camino, entonces toma C
                 linea+=letra+""
             print(linea)
 
+#Clase Entidad para agregar jugador y cazadores
