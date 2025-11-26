@@ -18,6 +18,9 @@ class Terreno:
 
     def permiteCazador(self):
         return False
+    
+    def permiteTrampa(self):
+        return False
 
 #hijos de Terrenos (Todas las casillas que van a existir)
 
@@ -31,11 +34,12 @@ class Camino(Terreno):
     def permiteCazador(self):
         return True
     
-
+    def permiteTrampa(self):
+        return True
+    
 class Muro(Terreno):
     def __init__(self, fila, columna):
         super().__init__(fila, columna)
-
 
 class Liana(Terreno):
     def __init__(self, fila, columna):
@@ -43,7 +47,6 @@ class Liana(Terreno):
     
     def permiteCazador(self):
         return True
-
 
 class Tunel(Terreno):
     def __init__(self, fila, columna):
@@ -71,11 +74,14 @@ class Mapa:
         return 0<=fila<self.filas and 0<=columna<self.columnas
     
     def generarAleatorio(self):
-        casillas=[Camino,Muro,Liana,Tunel]
+        casillas=[Camino]*60+[Muro]*20+[Liana]*15+[Tunel]*5
         for i in range(self.filas):
             for j in range(self.columnas):
                 Es=random.choice(casillas)
                 self.matriz[i][j]=Es(i,j)
+        
+        if not self.matriz[0][0].permiteJugador():
+            self.matriz[0][0]=Camino(0,0)
     
     def imprimirMapa(self):
         for fila in self.matriz:
@@ -88,24 +94,23 @@ class Mapa:
 #clase Entidad para agregar jugador y cazadores
 
 class Entidad:
-    def __init__(self, fila, columna, mapa):
+    def __init__(self, fila, columna, mapa, semueve):
         self.fila=fila
         self.columna=columna
         self.mapa=mapa
+        self.semueve=semueve
     
     def puedeMover(self, filanew, columnanew):
         if not self.mapa.dentroDeLimites(filanew, columnanew):
             return False
-        return True
+        
+        terreno=self.mapa.obtenerTerreno(filanew, columnanew)
+        if self.semueve=="juega":
+            return terreno.permiteJugador()
+        elif self.semueve=="caza":
+            return terreno.permiteCazador()
+        return False
     
-    def mover(self, nfilas, ncolumnas):
-        filanew=self.fila+nfilas
-        columnanew=self.columna+ncolumnas
-
-        if self.puedeMover(filanew, columnanew):
-            self.fila=filanew
-            self.columna=columnanew
-
 #clase Trampa para las trampas del jugador
 
 class Trampa:
@@ -119,7 +124,7 @@ class Trampa:
 
 class Jugador(Entidad):
     def __init__(self, fila, columna, mapa):
-        super().__init__(fila, columna, mapa)
+        super().__init__(fila, columna, mapa, 'juega')
 
         self.energia=100
         self.energiamax=100
@@ -128,26 +133,19 @@ class Jugador(Entidad):
         self.recarga=5
         self.trampasmax=3
     
-    def puedeMover(self, filanew, columnanew):
-        if not self.mapa.dentroDeLimites(filanew, columnanew):
-            return False
-        
-        terreno=self.mapa.obtenerTerreno(filanew, columnanew)
-        if not terreno.permiteJugador():
-            return False
-        return True
-
     def correr(self, nfilas, ncolumnas):
         if self.energia<=0:
-            return
+            return False
         
         filasegui=self.fila+nfilas*2
         columnasegui=self.columna+ncolumnas*2
-        self.energia-=1
 
         if self.puedeMover(filasegui, columnasegui):
             self.fila=filasegui
             self.columna=columnasegui
+            self.energia-=5
+            return True
+        return False
 
     def recuperarEnergia(self):
         if self.energia<self.energiamax:
@@ -155,36 +153,29 @@ class Jugador(Entidad):
 
     def colocarTrampa(self):
         quieromitiempo=time.time()
-
         if quieromitiempo-self.ultimo<self.recarga:
-            return
+            return False
         
         if len(self.trampas)>=self.trampasmax:
-            return
+            return False
+        
+        terreno=self.mapa.obtenerTerreno(self.fila, self.columna)
+        if not terreno.permiteTrampa():
+            return False
         
         trampa=Trampa(self.fila, self.columna, self.mapa)
         self.trampas.append(trampa)
         self.ultimo=quieromitiempo
+        return True
 
     def limpiarTrampas(self):
-        trampas=[]
-        for t in self.trampas:
-            if t.activa:
-                trampas.append(t)
-        self.trampas=trampas
+        self.trampas=[i for i in self.trampas if i.activa]
 
 #clase Cazador (hijo)
 
 class Cazador(Entidad):
     def __init__(self, fila, columna, mapa):
-        super().__init__(fila, columna, mapa)
-
-    def puedeMover(self, nuevaFila, nuevaColumna):
-        if not self.mapa.dentroDeLimites(nuevaFila, nuevaColumna):
-            return False
-
-        terreno=self.mapa.obtenerTerreno(nuevaFila, nuevaColumna)
-        return terreno.permiteCazador()
+        super().__init__(fila, columna, mapa, 'caza')
 
     #se aplica bfs para encontrar al jugador de la forma mas rapida
     def bfs(self, jugador):
@@ -196,11 +187,8 @@ class Cazador(Entidad):
 
         cola=[inicio]
         visitado=[[False for _ in range(self.mapa.columnas)] for _ in range(self.mapa.filas)]
-
         padre=[[None for _ in range(self.mapa.columnas)] for _ in range(self.mapa.filas)]
-
         visitado[inicio[0]][inicio[1]]=True
-
         semueve=[(1,0), (-1,0), (0,1), (0,-1)]
 
         #bfs clasiquito
@@ -209,7 +197,6 @@ class Cazador(Entidad):
             f, c=cola.pop(0)
             if (f, c)==objetivo:
                 break
-
             for fs, cs in semueve:
                 ffs= f+fs
                 ccs= c+cs
@@ -220,7 +207,6 @@ class Cazador(Entidad):
                         padre[ffs][ccs]=(f, c)
                         cola.append((ffs, ccs))
 
-        
         if not visitado[objetivo[0]][objetivo[1]]:
             return None
 
@@ -231,7 +217,6 @@ class Cazador(Entidad):
             camino.append(paso)
             paso=padre[paso[0]][paso[1]]
         camino.reverse()
-
         return camino
     
     def perseguir(self, jugador):
