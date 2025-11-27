@@ -11,29 +11,30 @@ BGC = (255, 255, 255)
 COLOR_TEXTO = (20, 20, 20)
 
 MAPA = [
-    [0,0, 0, 0, 0, 0, 0, 0, 0,1],
-    [0,1, 0, 1, 0, 1, 1, 1, 0,1],
-    [0,0, 0, 0, 0, 0, 0, 0, 0,1],
-    [1,0, 1, 1, 0, 1, 1, 1, 0,1],
-    [1,0, 0, 0, 0, 0, 0, 1, 0,1],
-    [1,1, 1, 1, 0, 1, 0, 1, 0,1],
-    [1,0, 0, 0, 0, 1, 0, 0, 0,1],
-    [1,0, 1, 0, 1, 1, 1, 1, 0,1],
-    [1,0, 0, 0, 0, 'E', 0, 0, 0,1],
-    [1,1, 1, 1, 1, 1, 1, 1, 1,1]
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 'E', 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
 
 POSICION_INICIAL = [0, 0] 
 
-cantidad_cazadores = 3
+CAZADORES_EN_MAPA = 3
 
 RUTAS_IMAGENES = {
     0: 'assets/path.png',
     1: 'assets/wall.png',
-    2: 'assets/lianas.png',
+    2: 'assets/pit.png',
+    3: 'assets/duct.png',
     'E': 'assets/exit.png',
     'PLAYER': 'assets/player.png',
-    'CAZADOR': 'assets/cazador.png'
+    'CAZADOR': 'assets/hunter.png'
 }
 
 ### Clases de Terreno ###
@@ -381,7 +382,7 @@ class Juego:
         self.jugador = Jugador(inicio, ancho_celda, alto_celda, self.gestor_recursos)
         self.cazadores = []
         
-        self.inicializar_cazadores(cantidad_cazadores)
+        self.inicializar_cazadores(CAZADORES_EN_MAPA)
         
         self.fuente_pequena = pygame.font.Font(None, 24)
         self.fuente_grande = pygame.font.Font(None, 74)
@@ -442,7 +443,7 @@ class Juego:
         self.juego_terminado = False
         self.victoria = False
         self.jugador.reiniciar()
-        self.inicializar_cazadores(cantidad_cazadores)
+        self.inicializar_cazadores(CAZADORES_EN_MAPA)
             
     def dibujar_texto(self, superficie, texto, fuente, color, centro_x, centro_y):
         texto_superficie = fuente.render(texto, True, color)
