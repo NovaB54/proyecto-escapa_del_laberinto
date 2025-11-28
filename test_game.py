@@ -23,7 +23,7 @@ MAPA = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 ]
 
-POSICION_INICIAL = [0, 0] 
+POSICION_INICIAL = [0, 6] 
 
 CAZADORES_EN_MAPA = 3
 
