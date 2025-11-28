@@ -9,7 +9,7 @@ import json
 #
 #Clase Terreno para hacer variedad de casillas
 class Terreno:
-    def __init__(self, fila, columna):
+    def __init__(self,fila,columna):
         self.fila=fila
         self.columna=columna
 
@@ -22,11 +22,11 @@ class Terreno:
     def permiteTrampa(self):
         return False
 
-#hijos de Terrenos (Todas las casillas que van a existir)
+#hijos de Terrenos todas las casillas que van a existir
 
 class Camino(Terreno):
-    def __init__(self, fila, columna):
-        super().__init__(fila, columna) #se llama super para que las clases hijos llamen al del padre automáticamente y porque nos habia dado problemas mas adelante con ImprimirMapa.
+    def __init__(self,fila,columna):
+        super().__init__(fila,columna)
 
     def permiteJugador(self):
         return True
@@ -36,20 +36,27 @@ class Camino(Terreno):
     
     def permiteTrampa(self):
         return True
-    
+
 class Muro(Terreno):
     pass
 
 class Liana(Terreno):
-    def __init__(self, fila, columna):
-        super().__init__(fila, columna)
+    def __init__(self,fila,columna):
+        super().__init__(fila,columna)
     
     def permiteCazador(self):
         return True
 
 class Tunel(Terreno):
-    def __init__(self, fila, columna):
-        super().__init__(fila, columna)
+    def __init__(self,fila,columna):
+        super().__init__(fila,columna)
+    
+    def permiteJugador(self):
+        return True
+
+class Salida(Terreno):
+    def __init__(self,fila,columna):
+        super().__init__(fila,columna)
     
     def permiteJugador(self):
         return True
@@ -57,181 +64,95 @@ class Tunel(Terreno):
 #clase Mapa para generar la matriz del laberinto
 
 class Mapa:
-    def __init__(self, filas=10, columnas=10):
-        self.filas=filas
-        self.columnas=columnas
-        self.matriz=[[None for _ in range(columnas)] for _ in range(filas)]
-        self.salida=(filas-1,columnas-1)
-    #hacer que siempre alla un camino y sea de forma aleatoria con dfs
-    def generarAleatorio(self):
-        for f in range(self.filas):
-            for c in range(self.columnas):
-                self.matriz[f][c]=Muro(f,c)
+    def __init__(self,ancho,alto):
+        self.ancho=ancho
+        self.alto=alto
+        self.filas=alto
+        self.columnas=ancho
+        self.matriz=[]
+        self.salida=(alto-2,ancho-2)
+        self.generar_mapa()
 
-        self.matriz[0][0]=Camino(0,0)
-        self.matriz[self.filas-1][self.columnas-1]=Camino(self.filas-1,self.columnas-1)
+    def generar_mapa(self):
+        self.matriz=[[Muro(y,x) for x in range(self.ancho)] for y in range(self.alto)]
 
-        def crearLab(f_act,c_act,visitados):
-            visitados.append((f_act,c_act))
-            self.matriz[f_act][c_act]=Camino(f_act,c_act)
+        def crear_laberinto(y,x,visitados):
+            visitados.add((y,x))
+            self.matriz[y][x]=Camino(y,x)
 
-            dirs=[(-2,0),(0,2),(2,0),(0,-2)]
-            random.shuffle(dirs)
+            direcciones=[(-2,0),(0,2),(2,0),(0,-2)]
+            random.shuffle(direcciones)
 
-            for df,dc in dirs:
-                nf=f_act+df
-                nc=c_act+dc
-                if 0<=nf<self.filas and 0<=nc<self.columnas:
-                    visitado=(nf,nc) in visitados
-                    es_muro=self.matriz[nf][nc].permiteJugador()==False and self.matriz[nf][nc].permiteCazador()==False
-                    if not visitado and es_muro:
-                        pf=f_act+df//2
-                        pc=c_act+dc//2
-                        if 0<=pf<self.filas and 0<=pc<self.columnas:
-                            self.matriz[pf][pc]=Camino(pf,pc)
-                        crearLab(nf,nc,visitados)
+            for dy,dx in direcciones:
+                ny,nx=y+dy,x+dx
+                if 1<=ny<self.alto-1 and 1<=nx<self.ancho-1:
+                    if(ny,nx)not in visitados:
+                        pared_y=y+dy//2
+                        pared_x=x+dx//2
+                        self.matriz[pared_y][pared_x]=Camino(pared_y,pared_x)
+                        crear_laberinto(ny,nx,visitados)
 
-        visitados=[]
-        crearLab(0,0,visitados)
+        visitados=set()
+        crear_laberinto(1,1,visitados)
 
-        while not self.verificarConexion():
-            self.__init__(self.filas,self.columnas)
-            self.generarAleatorio()
-            return
+        for i in range(1,self.alto-1):
+            if isinstance(self.matriz[i][self.ancho-3],Camino):
+                self.matriz[i][self.ancho-2]=Camino(i,self.ancho-2)
 
-        self.conectarSalida()
-    
-        self.agregarTuneles()
-        self.agregarLianas()
+        for i in range(1,self.ancho-1):
+            if isinstance(self.matriz[self.alto-3][i],Camino):
+                self.matriz[self.alto-2][i]=Camino(self.alto-2,i)
 
-        if not self.verificarConexion():
-            self.conectarSalida()
+        for intento in range(40):
+            y=random.randint(2,self.alto-3)
+            x=random.randint(2,self.ancho-3)
 
-    def conectarSalida(self):
-        fs,cs=self.salida
-        
-        if not self.salidaConectada():
-            punto_cercano=None
-            for dist in range(1,6):
-                for dc in range(-dist,dist+1):
-                    for df in range(-dist,dist+1):
-                        if abs(dc)+abs(df)==dist:
-                            fv=fs+df
-                            cv=cs+dc
-                            if (0<=fv<self.filas and 0<=cv<self.columnas and
-                                (self.matriz[fv][cv].permiteJugador() or self.matriz[fv][cv].permiteCazador())):
-                                punto_cercano=(fv,cv)
-                                break
-                    if punto_cercano:
-                        break
-                if punto_cercano:
-                    break
-            
-            if punto_cercano:
-                self.crearCamino(punto_cercano,self.salida)
+            if isinstance(self.matriz[y][x],Muro):
+                vecinos_camino=0
+                for dy,dx in[(0,1),(1,0),(0,-1),(-1,0)]:
+                    ny,nx=y+dy,x+dx
+                    if 0<=ny<self.alto and 0<=nx<self.ancho:
+                        if isinstance(self.matriz[ny][nx],Camino):
+                            vecinos_camino+=1
+                if vecinos_camino==2:
+                    self.matriz[y][x]=Camino(y,x)
 
-    def salidaConectada(self):
-        fs,cs=self.salida
-        for df,dc in [(0,1),(1,0),(0,-1),(-1,0)]:
-            fv=fs+df
-            cv=cs+dc
-            if (0<=fv<self.filas and 0<=cv<self.columnas and
-                (self.matriz[fv][cv].permiteJugador() or self.matriz[fv][cv].permiteCazador())):
-                return True
-        return False
+        tuneles_creados=0
+        for y in range(2,self.alto-2):
+            for x in range(2,self.ancho-2):
+                if tuneles_creados<4 and isinstance(self.matriz[y][x],Camino):
+                    if random.random()<0.015:
+                        if not((y<4 and x<4)or(y>self.alto-5 and x>self.ancho-5)):
+                            self.matriz[y][x]=Tunel(y,x)
+                            tuneles_creados+=1
 
-    def crearCamino(self,inicio,fin):
-        fa,ca=inicio
-        while (fa,ca)!=fin:
-            if fa<fin[0]:
-                fa+=1
-            elif fa>fin[0]:
-                fa-=1
-            elif ca<fin[1]:
-                ca+=1
-            elif ca>fin[1]:
-                ca-=1
-            
-            es_muro=self.matriz[fa][ca].permiteJugador()==False and self.matriz[fa][ca].permiteCazador()==False
-            if es_muro:
-                self.matriz[fa][ca]=Camino(fa,ca)
-
-    def agregarTuneles(self):
-        cont=0
-        for f in range(1,self.filas-1):
-            for c in range(1,self.columnas-1):
-                es_camino=self.matriz[f][c].permiteJugador() and self.matriz[f][c].permiteCazador()
-                if cont<5 and es_camino:
-                    if random.random()<0.05:
-                        no_inicio=(f,c)!=(0,0)
-                        no_salida=(f,c)!=(self.filas-1,self.columnas-1)
-                        if no_inicio and no_salida:
-                            self.matriz[f][c]=Tunel(f,c)
-                            cont+=1
-
-    def agregarLianas(self):
-        cont=0
-        for f in range(1,self.filas-1):
-            for c in range(1,self.columnas-1):
-                es_muro=self.matriz[f][c].permiteJugador()==False and self.matriz[f][c].permiteCazador()==False
-                if cont<8 and es_muro:
-                    if random.random()<0.04:
+        lianas_creadas=0
+        for y in range(2,self.alto-2):
+            for x in range(2,self.ancho-2):
+                if lianas_creadas<8 and isinstance(self.matriz[y][x],Muro):
+                    if random.random()<0.02:
                         tiene_vecino=False
-                        for df,dc in [(0,1),(1,0),(0,-1),(-1,0)]:
-                            fv=f+df
-                            cv=c+dc
-                            if 0<=fv<self.filas and 0<=cv<self.columnas:
-                                vecino_transitable=self.matriz[fv][cv].permiteJugador() or self.matriz[fv][cv].permiteCazador()
-                                if vecino_transitable:
+                        for dy,dx in[(0,1),(1,0),(0,-1),(-1,0)]:
+                            ny,nx=y+dy,x+dx
+                            if 0<=ny<self.alto and 0<=nx<self.ancho:
+                                if(isinstance(self.matriz[ny][nx],Camino)or 
+                                    isinstance(self.matriz[ny][nx],Liana)):
                                     tiene_vecino=True
                                     break
-                    
                         if tiene_vecino:
-                            self.matriz[f][c]=Liana(f,c)
-                            cont+=1
+                            self.matriz[y][x]=Liana(y,x)
+                            lianas_creadas+=1
 
-    def verificarConexion(self):
-        inicio_transitable=self.matriz[0][0].permiteJugador()
+        self.matriz[self.alto-2][self.ancho-2]=Salida(self.alto-2,self.ancho-2)
 
-        if not inicio_transitable:
-            return False
-        
-        visitados=[[False]*self.columnas for _ in range(self.filas)]
-        cola=[]
-        cola.append((0,0))
-        visitados[0][0]=True
-        
-        while cola:
-            fa,ca=cola.pop(0)
-            if (fa,ca)==(self.filas-1,self.columnas-1):
-                return True
-            
-            for df,dc in [(0,1),(1,0),(0,-1),(-1,0)]:
-                fv=fa+df
-                cv=ca+dc
+    def enLimites(self,fila,columna):
+        return 0<=fila<self.alto and 0<=columna<self.ancho
 
-                if (0<=fv<self.filas and 0<=cv<self.columnas and not visitados[fv][cv] and self.matriz[fv][cv].permiteJugador()):
-                    visitados[fv][cv]=True
-                    cola.append((fv,cv))
-        
-        return False
-
-    def enLimites(self,f,c):
-        return 0<=f<self.filas and 0<=c<self.columnas
-
-    def obtenerTerreno(self,f,c):
-        if self.enLimites(f,c):
-            return self.matriz[f][c]
-        return None
-
-    def imprimir(self):
-        for fila in self.matriz:
-            linea=""
-            for casilla in fila:
-                letra=casilla.__class__.__name__[0] #con esta variable se agarra la primera letra de las clases, Camino, entonces toma C
-                linea+=letra+" "
-            print(linea)
-
+    def obtenerTerreno(self,fila,columna):
+        if self.enLimites(fila,columna):
+            return self.matriz[fila][columna]
+        return Muro(fila,columna)
+    
 #clase Entidad para agregar jugador y cazadores
 
 class Entidad:
@@ -336,7 +257,6 @@ class Cazador(Entidad):
         self.vivo=True
         self.t_muerte=None
 
-    #se aplica bfs para encontrar al jugador de la forma mas rapida
     def bfs(self, jugador):
         inicio=(self.fila, self.columna)
         objetivo=(jugador.fila, jugador.columna)
@@ -350,9 +270,7 @@ class Cazador(Entidad):
         visitado[inicio[0]][inicio[1]]=True
         semueve=[(1,0), (-1,0), (0,1), (0,-1)]
 
-        #bfs clasiquito
         while cola:
-
             f, c=cola.pop(0)
             if (f, c)==objetivo:
                 break
@@ -428,12 +346,11 @@ class Cazador(Entidad):
 #clase juego principal para que funcionen las demas clases juntas
 class Juego:
     def __init__(self, filas=10, columnas=10, cantidad_cazadores=2, modo="escape", nombre_jugador="Jugador"):
-        self.mapa=Mapa(filas,columnas)
-        self.mapa.generarAleatorio()
+        self.mapa=Mapa(columnas,filas)
 
         self.nombre_jugador=nombre_jugador
 
-        self.jugador=Jugador(0,0,self.mapa)
+        self.jugador=Jugador(2, 1, self.mapa)
         
         if modo=="cazador":
             self.jugador.recarga=999999
@@ -455,6 +372,24 @@ class Juego:
         self.puntos_perdida_salida=50
         self.puntos_ganancia_captura=self.puntos_perdida_salida*2
         self.bono_trampa=20
+
+    def buscar_posicion_cazador(self):
+        intentos=0
+        while intentos<50:
+            fila=random.randint(0,self.mapa.filas-1)
+            columna=random.randint(0,self.mapa.columnas-1)
+            terreno=self.mapa.obtenerTerreno(fila,columna)
+            
+            if terreno.permiteCazador():
+                return fila,columna
+            intentos+=1
+        
+        for i in range(self.mapa.filas):
+            for j in range(self.mapa.columnas):
+                terreno=self.mapa.obtenerTerreno(i,j)
+                if terreno.permiteCazador():
+                    return i,j
+        return self.mapa.filas-1,self.mapa.columnas-1
 
     def registrar_puntaje(self):
         if not self.juego_terminado:
@@ -485,24 +420,6 @@ class Juego:
         if modo not in puntajes:
             return []
         return puntajes[modo]
-
-    def buscar_posicion_cazador(self):
-        intentos=0
-        while intentos<50:
-            fila=random.randint(0,self.mapa.filas-1)
-            columna=random.randint(0,self.mapa.columnas-1)
-            terreno=self.mapa.obtenerTerreno(fila,columna)
-            
-            if terreno.permiteCazador():
-                return fila,columna
-            intentos+=1
-        
-        for i in range(self.mapa.filas):
-            for j in range(self.mapa.columnas):
-                terreno=self.mapa.obtenerTerreno(i,j)
-                if terreno.permiteCazador():
-                    return i,j
-        return self.mapa.filas-1,self.mapa.columnas-1
 
     def mover_jugador(self, df, dc):
         if self.juego_terminado:
@@ -665,7 +582,6 @@ def cargar_puntajes():
         return {"escape": [], "cazador": []}
 
     return json.loads(contenido)
-
 
 def guardar_puntajes(puntajes):
     texto=json.dumps(puntajes, indent=4)
