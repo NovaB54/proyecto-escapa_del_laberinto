@@ -5,12 +5,6 @@
             "puntos": 1120,
             "tiempo": 45,
             "resultado": "ganaste"
-        },
-        {
-            "nombre": "a",
-            "puntos": 320,
-            "tiempo": 19,
-            "resultado": "ganaste"
         }
     ],
     "cazador": [
@@ -18,12 +12,6 @@
             "nombre": "NovatoMC",
             "puntos": 8400,
             "tiempo": 150,
-            "resultado": "ganaste"
-        },
-        {
-            "nombre": "a",
-            "puntos": 5400,
-            "tiempo": 54,
             "resultado": "ganaste"
         }
     ]
