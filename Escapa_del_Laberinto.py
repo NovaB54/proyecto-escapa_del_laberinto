@@ -453,20 +453,20 @@ class Juego:
     def configurar_dificultad_cazador(self):
         if self.dificultad=="facil":
             self.cantidad_cazadores_inicial=2
-            self.puntos_ganancia_captura=100
-            self.puntos_perdida_salida=200
+            self.puntos_ganancia_captura=200
+            self.puntos_perdida_salida=100
             self.frecuencia_movimiento_cazadores=7
             self.meta_cazadores=5
         elif self.dificultad=="medio":
             self.cantidad_cazadores_inicial=3
-            self.puntos_ganancia_captura=300
-            self.puntos_perdida_salida=600
+            self.puntos_ganancia_captura=600
+            self.puntos_perdida_salida=300
             self.frecuencia_movimiento_cazadores=6
             self.meta_cazadores=10
         elif self.dificultad=="dificil":
             self.cantidad_cazadores_inicial=5
-            self.puntos_ganancia_captura=600
-            self.puntos_perdida_salida=1200
+            self.puntos_ganancia_captura=1200
+            self.puntos_perdida_salida=600
             self.frecuencia_movimiento_cazadores=5
             self.meta_cazadores=15
 
