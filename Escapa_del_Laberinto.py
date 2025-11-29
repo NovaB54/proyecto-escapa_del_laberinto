@@ -5,8 +5,31 @@ import random
 import time
 import os
 import json
+import pygame
 #
 #
+#Sonidos
+def reproducir_energy_full():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "energy_full.ogg")
+    sonido_trap_activated = pygame.mixer.Sound(ruta_sonido)
+    sonido_trap_activated.play()
+
+def reproducir_step():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "step.ogg")
+    sonido_step = pygame.mixer.Sound(ruta_sonido)
+    sonido_step.play()
+
+def reproducir_catch():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "catch.ogg")
+    sonido_catch = pygame.mixer.Sound(ruta_sonido)
+    sonido_catch.play()
+
 #Clase Terreno para hacer variedad de casillas
 class Terreno:
     def __init__(self,fila,columna):
@@ -217,6 +240,8 @@ class Jugador(Entidad):
             if caz.vivo and caz.fila==nueva_fila and caz.columna==nueva_columna:
                 return False
 
+        reproducir_step()
+
         self.fila=nueva_fila
         self.columna=nueva_columna
 
@@ -238,11 +263,12 @@ class Jugador(Entidad):
         if ahora-self.tiempo_ultima_recarga>=1.5:
             if self.energia<self.energiamax:
                 self.energia+=5
+                if self.energia==100: reproducir_energy_full()
                 if self.energia>self.energiamax:
                     self.energia=self.energiamax
             self.tiempo_ultima_recarga=ahora
 
-    def colocarTrampa(self,modo):
+    def colocar_trampa(self,modo):
         if modo!="escape":
             return False
 
@@ -355,6 +381,7 @@ class Cazador(Entidad):
     def verificarTrampa(self,jugador):
         for t in jugador.trampas:
             if t.activa and t.fila==self.fila and t.columna==self.columna:
+                reproducir_catch()
                 t.activa=False
                 return True
         return False
@@ -557,7 +584,7 @@ class Juego:
     def colocar_trampa(self):
         if self.juego_terminado:
             return False
-        x=self.jugador.colocarTrampa(self.modo)
+        x=self.jugador.colocar_trampa(self.modo)
         if not x:
             return False
         if self.modo=="escape":
@@ -663,35 +690,26 @@ class Juego:
             nombre_jugador=nombre_jugador,
             dificultad=self.dificultad
         )
-
+#poner puntaje en .json
 archivo_puntos="puntajes.json"
 
 def cargar_puntajes():
     if not os.path.exists(archivo_puntos):
         return {"escape": [], "cazador": []}
 
-    archivo=open(archivo_puntos, "r")
-    contenido=archivo.read()
-    archivo.close()
-
-    if contenido.strip()=="":
+    try:
+        with open(archivo_puntos, "r") as archivo:
+            data = json.load(archivo)
+    except:
         return {"escape": [], "cazador": []}
 
-    data=json.loads(contenido)
-    limpio={"escape": [], "cazador": []}
+    limpio = {"escape": [], "cazador": []}
 
-    for modo in ["escape", "cazador"]:
-        lista=data.get(modo, [])
+    for modo in limpio:
+        lista = data.get(modo, [])
         for item in lista:
             if isinstance(item, dict):
                 limpio[modo].append(item)
-            else:
-                limpio[modo].append({
-                    "nombre": "Jugador",
-                    "puntos": int(item),
-                    "tiempo": 0,
-                    "resultado": "desconocido"
-                })
 
     return limpio
 

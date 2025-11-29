@@ -1,8 +1,0 @@
-   -Intrucciones de la versión 0.0.2-
-
--Movimiento
-Presiona W, A, S, D para moverte en el laberinto
-
--Objetivo
-Llega al circuito para reparar al robotito (La meta)
-Los robots malignos intentarán atraparte y te seguirán, evítalos a toda costa.

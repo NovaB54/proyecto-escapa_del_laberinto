@@ -25,7 +25,7 @@ MURO =escalar(pygame.image.load(os.path.join("assets","textures","wall.png")))
 LIANA =escalar(pygame.image.load(os.path.join("assets","textures","pit.png")))
 TUNEL =escalar(pygame.image.load(os.path.join("assets","textures","duct.png")))
 SALIDA =escalar(pygame.image.load(os.path.join("assets","textures","exit.png")))
-TRAMPA =escalar(pygame.image.load(os.path.join("assets","textures","pit.png")))
+TRAMPA =escalar(pygame.image.load(os.path.join("assets","textures","trap.png")))
 CAZADOR =escalar(pygame.image.load(os.path.join("assets","textures","hunter.png")))
 JUGADOR =escalar(pygame.image.load(os.path.join("assets","textures","player.png")))
 
@@ -43,6 +43,27 @@ def reproducir_start_game():
     ruta_sonido = os.path.join("assets", "sounds", "start_game.ogg")
     sonido_start_game = pygame.mixer.Sound(ruta_sonido)
     sonido_start_game.play()
+
+def reproducir_trap_activated():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "trap_activated.ogg")
+    sonido_trap_activated = pygame.mixer.Sound(ruta_sonido)
+    sonido_trap_activated.play()
+
+def reproducir_game_over():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "game_over.ogg")
+    sonido_game_over = pygame.mixer.Sound(ruta_sonido)
+    sonido_game_over.play()
+
+def reproducir_game_start():
+    if not pygame.mixer.get_init():
+        pygame.mixer.init()
+    ruta_sonido = os.path.join("assets", "sounds", "game_start.ogg")
+    sonido_game_start = pygame.mixer.Sound(ruta_sonido)
+    sonido_game_start.play()
 
 #Clases usadas por la interfaz
 class Boton:
@@ -197,8 +218,10 @@ def dibujar_game_over(pantalla, resultado, puntos):
     
     if resultado == "ganaste":
         texto = fuente_grande.render("¡GANASTE!", True, VERDE)
+        reproducir_game_start()
     else:
         texto = fuente_grande.render("¡PERDISTE!", True, ROJO)
+        reproducir_game_over()
     
     rect_texto = texto.get_rect(center=(pantalla.get_width() // 2, pantalla.get_height() // 2 - 50))
     pantalla.blit(texto, rect_texto)
@@ -255,6 +278,7 @@ def iniciar_juego_escapa(pantalla, nombre_jugador, dificultad):
 
                     if evento.key==pygame.K_t:
                         juego.colocar_trampa()
+                        reproducir_trap_activated()
 
             elif evento.type==pygame.KEYUP:
                 if evento.key==pygame.K_SPACE:

@@ -1,0 +1,18 @@
+{
+    "escape": [
+        {
+            "nombre": "ManoloGamer",
+            "puntos": 1120,
+            "tiempo": 45,
+            "resultado": "ganaste"
+        }
+    ],
+    "cazador": [
+        {
+            "nombre": "NovatoMC",
+            "puntos": 8400,
+            "tiempo": 150,
+            "resultado": "ganaste"
+        }
+    ]
+}
