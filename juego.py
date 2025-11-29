@@ -4,22 +4,30 @@ import os
 import json
 import time
 
-# Importaciones necesarias del juego principal
+#importaciones necesarias del juego principal
 from Escapa_del_Laberinto import (
-    Terreno, Camino, Muro, Liana, Tunel, Mapa, 
+    Terreno, Camino, Muro, Liana, Tunel,Salida, Mapa, 
     Entidad, Trampa, Jugador, Cazador, Juego,
-    cargar_puntajes, guardar_puntajes
-)
+    cargar_puntajes, guardar_puntajes)
 
-import Escapa_del_Laberinto
+NEGRO =(0, 0, 0)
+GRIS =(50, 50, 50)
+BLANCO =(255, 255, 255)
+VERDE =(0, 150, 0)
+ROJO =(150, 0, 0)
+AZUL_CLARO =(173, 216, 230)
 
-# --- Colores Globales ---
-NEGRO = (0, 0, 0)
-GRIS = (50, 50, 50)
-BLANCO = (255, 255, 255)
-VERDE = (0, 150, 0)
-ROJO = (150, 0, 0)
-AZUL_CLARO = (173, 216, 230)
+def escalar(img):
+    return pygame.transform.scale(img, (30, 30))
+
+CAMINO=escalar(pygame.image.load(os.path.join("assets","textures","path.png")))
+MURO =escalar(pygame.image.load(os.path.join("assets","textures","wall.png")))
+LIANA =escalar(pygame.image.load(os.path.join("assets","textures","pit.png")))
+TUNEL =escalar(pygame.image.load(os.path.join("assets","textures","duct.png")))
+SALIDA =escalar(pygame.image.load(os.path.join("assets","textures","exit.png")))
+TRAMPA =escalar(pygame.image.load(os.path.join("assets","textures","pit.png")))
+CAZADOR =escalar(pygame.image.load(os.path.join("assets","textures","hunter.png")))
+JUGADOR =escalar(pygame.image.load(os.path.join("assets","textures","player.png")))
 
 ### Sonidos ###
 def reproducir_click():
@@ -105,124 +113,226 @@ class CuadroTexto:
         # Centrar el texto verticalmente y dejar un margen horizontal
         pantalla.blit(texto_superficie, (self.rect.x + 5, self.rect.y + 10))
 
+### Funciones de dibujo del juego ###
+def dibujar_mapa(pantalla, juego, tamaño_celda, offset_x, offset_y):
+    for fila in range(juego.mapa.alto):
+        for columna in range(juego.mapa.ancho):
+            terreno = juego.mapa.obtenerTerreno(fila, columna)
+            x = offset_x + columna * tamaño_celda
+            y = offset_y + fila * tamaño_celda
+            rect = pygame.Rect(x, y, tamaño_celda, tamaño_celda)
+            
+            if isinstance(terreno, Camino):
+                pantalla.blit(CAMINO, rect)
+            elif isinstance(terreno, Muro):
+                pantalla.blit(MURO, rect)
+            elif isinstance(terreno, Liana):
+                pantalla.blit(LIANA, rect)
+            elif isinstance(terreno, Tunel):
+                pantalla.blit(TUNEL, rect)
+            elif isinstance(terreno, Salida):
+                pantalla.blit(SALIDA, rect)
+
+            pygame.draw.rect(pantalla, BLANCO, rect, 1)
+
+def dibujar_jugador(pantalla, juego, tamaño_celda, offset_x, offset_y):
+    jugador=juego.jugador
+    if juego.modo=="escape":
+        textura=JUGADOR
+    else:
+        textura=CAZADOR
+    x = offset_x + jugador.columna * tamaño_celda
+    y = offset_y + jugador.fila * tamaño_celda
+    pantalla.blit(textura, (x, y))
+
+
+def dibujar_cazadores(pantalla, juego, tamaño_celda, offset_x, offset_y):
+    if juego.modo=="escape":
+        textura=CAZADOR
+    else:
+        textura=JUGADOR
+
+    for cazador in juego.cazadores:
+        if cazador.vivo:
+            x= offset_x + cazador.columna * tamaño_celda
+            y= offset_y + cazador.fila * tamaño_celda
+            pantalla.blit(textura, (x, y))
+
+def dibujar_trampas(pantalla, trampas, tamaño_celda, offset_x, offset_y):
+    for trampa in trampas:
+        if trampa.activa:
+            x = offset_x + trampa.columna * tamaño_celda
+            y = offset_y + trampa.fila * tamaño_celda
+            pantalla.blit(TRAMPA, (x, y))
+
+def dibujar_ui(pantalla, juego, ancho_pantalla):
+    fuente=pygame.font.Font(None, 36)
+    
+    texto_energia=fuente.render(f"Energía: {juego.jugador.energia}", True, BLANCO)
+    pantalla.blit(texto_energia, (10, 10))
+    
+    texto_puntos=fuente.render(f"Puntos: {juego.puntos}", True, BLANCO)
+    pantalla.blit(texto_puntos, (10, 50))
+    
+    tiempo=int(juego.obtener_tiempo_transcurrido())
+    texto_tiempo=fuente.render(f"Tiempo: {tiempo}s", True, BLANCO)
+    pantalla.blit(texto_tiempo, (10, 90))
+    
+    if juego.modo == "cazador":
+        texto_meta = fuente.render(
+            f"Meta: {juego.meta_cazadores} capturas", True, BLANCO)
+        pantalla.blit(texto_meta, (10, 130))
+
+        texto_actual = fuente.render(
+            f"Actual: {juego.cazadores_capturados}", True, BLANCO)
+        pantalla.blit(texto_actual, (10, 170))
+
+    else:
+        texto_trampas=fuente.render(f"Trampas: {len([t for t in juego.jugador.trampas if t.activa])}/{juego.jugador.trampasmax}", True, BLANCO)
+        pantalla.blit(texto_trampas, (10, 130))
+
+def dibujar_game_over(pantalla, resultado, puntos):
+    fuente_grande = pygame.font.Font(None, 74)
+    fuente_pequena = pygame.font.Font(None, 36)
+    
+    if resultado == "ganaste":
+        texto = fuente_grande.render("¡GANASTE!", True, VERDE)
+    else:
+        texto = fuente_grande.render("¡PERDISTE!", True, ROJO)
+    
+    rect_texto = texto.get_rect(center=(pantalla.get_width() // 2, pantalla.get_height() // 2 - 50))
+    pantalla.blit(texto, rect_texto)
+    
+    texto_puntos = fuente_pequena.render(f"Puntos: {puntos}", True, BLANCO)
+    rect_puntos = texto_puntos.get_rect(center=(pantalla.get_width() // 2, pantalla.get_height() // 2 + 20))
+    pantalla.blit(texto_puntos, rect_puntos)
+    
+    texto_continuar = fuente_pequena.render("Presiona ESPACIO para continuar", True, BLANCO)
+    rect_continuar = texto_continuar.get_rect(center=(pantalla.get_width() // 2, pantalla.get_height() // 2 + 70))
+    pantalla.blit(texto_continuar, rect_continuar)
 
 ### Funciones de Interfaz (Pantallas Secundarias) ###
 
-#Incio de juego
-def iniciar_juego_escapa(pantalla, nombre_jugador):
-    nombre = nombre_jugador if nombre_jugador.strip() else "Invitado"
-    juego = Juego(filas=15, columnas=15, cantidad_cazadores=3, modo="caza", nombre_jugador=nombre)
+#Incio de juego - Modo Escapa
+def iniciar_juego_escapa(pantalla, nombre_jugador, dificultad):
+    nombre=nombre_jugador if nombre_jugador.strip() else "Invitado"
+    juego=Juego(filas=15,columnas=15,cantidad_cazadores=3,modo="escape",nombre_jugador=nombre,dificultad=dificultad)
     
-    tamaño_celda = 30
-    ancho_mapa = juego.mapa.ancho * tamaño_celda
-    alto_mapa = juego.mapa.alto * tamaño_celda
-    offset_x = (pantalla.get_width() - ancho_mapa) // 2
-    offset_y = (pantalla.get_height() - alto_mapa) // 2
+    tamaño_celda=30
+    ancho_mapa=juego.mapa.ancho*tamaño_celda
+    alto_mapa=juego.mapa.alto*tamaño_celda
+    offset_x=(pantalla.get_width()-ancho_mapa)//2
+    offset_y=(pantalla.get_height()-alto_mapa)//2
     
-    reloj = pygame.time.Clock()
-    ejecutando_juego = True
+    reloj=pygame.time.Clock()
+    ejecutando_juego=True
     
     while ejecutando_juego:
         for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
+            if evento.type==pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             
-            if evento.type == pygame.KEYDOWN:
+            if evento.type==pygame.KEYDOWN:
                 if juego.juego_terminado:
-                    if evento.key == pygame.K_SPACE:
-                        ejecutando_juego = False
+                    if evento.key==pygame.K_SPACE:
+                        ejecutando_juego=False
                 else:
-                    if evento.key == pygame.K_ESCAPE:
-                        ejecutando_juego = False
-                    elif evento.key == pygame.K_UP:
-                        juego.mover_jugador(-1, 0)
-                    elif evento.key == pygame.K_DOWN:
-                        juego.mover_jugador(1, 0)
-                    elif evento.key == pygame.K_LEFT:
-                        juego.mover_jugador(0, -1)
-                    elif evento.key == pygame.K_RIGHT:
-                        juego.mover_jugador(0, 1)
-                    elif evento.key == pygame.K_SPACE:
-                        juego.correr_jugador(0, 1)
-                    elif evento.key == pygame.K_t:
+                    if evento.key==pygame.K_ESCAPE:
+                        ejecutando_juego=False
+
+                    if evento.key==pygame.K_SPACE:
+                        juego.jugador.corriendo=True
+
+                    if evento.key==pygame.K_UP:
+                        juego.mover_jugador(-1,0)
+                    elif evento.key==pygame.K_DOWN:
+                        juego.mover_jugador(1,0)
+                    elif evento.key==pygame.K_LEFT:
+                        juego.mover_jugador(0,-1)
+                    elif evento.key==pygame.K_RIGHT:
+                        juego.mover_jugador(0,1)
+
+                    if evento.key==pygame.K_t:
                         juego.colocar_trampa()
+
+            elif evento.type==pygame.KEYUP:
+                if evento.key==pygame.K_SPACE:
+                    juego.jugador.corriendo=False
         
-        #Actualiza el juego
         if not juego.juego_terminado:
             juego.tick()
 
-        reproducir_start_game() 
-
-        #Dibujado
         pantalla.fill(NEGRO)
         
         if not juego.juego_terminado:
-            dibujar_mapa(pantalla, juego, tamaño_celda, offset_x, offset_y)
-            dibujar_trampas(pantalla, juego.jugador.trampas, tamaño_celda, offset_x, offset_y)
-            dibujar_jugador(pantalla, juego.jugador, tamaño_celda, offset_x, offset_y)
-            dibujar_cazadores(pantalla, juego.cazadores, tamaño_celda, offset_x, offset_y)
-            dibujar_ui(pantalla, juego, pantalla.get_width())
+            dibujar_mapa(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_trampas(pantalla,juego.jugador.trampas,tamaño_celda,offset_x,offset_y)
+            dibujar_jugador(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_cazadores(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_ui(pantalla,juego,pantalla.get_width())
         else:
-            dibujar_game_over(pantalla, juego.resultado, juego.puntos)
+            dibujar_game_over(pantalla,juego.resultado,juego.puntos)
         
         pygame.display.flip()
         reloj.tick(10)
 
-def iniciar_juego_escapa(pantalla, nombre_jugador):
+#Inicio de juego - Modo Cazador
+def iniciar_juego_caza(pantalla, nombre_jugador, dificultad):
     nombre = nombre_jugador if nombre_jugador.strip() else "Invitado"
-    juego = Juego(filas=15, columnas=15, cantidad_cazadores=3, modo="caza", nombre_jugador=nombre)
+    juego = Juego(filas=15,columnas=15,cantidad_cazadores=3,modo="cazador",nombre_jugador=nombre,dificultad=dificultad)
+
+    tamaño_celda=30
+    ancho_mapa=juego.mapa.ancho*tamaño_celda
+    alto_mapa=juego.mapa.alto*tamaño_celda
+    offset_x=(pantalla.get_width()-ancho_mapa)//2
+    offset_y=(pantalla.get_height()-alto_mapa)//2
     
-    tamaño_celda = 30
-    ancho_mapa = juego.mapa.ancho * tamaño_celda
-    alto_mapa = juego.mapa.alto * tamaño_celda
-    offset_x = (pantalla.get_width() - ancho_mapa) // 2
-    offset_y = (pantalla.get_height() - alto_mapa) // 2
-    
-    reloj = pygame.time.Clock()
-    ejecutando_juego = True
+    reloj=pygame.time.Clock()
+    ejecutando_juego=True
     
     while ejecutando_juego:
         for evento in pygame.event.get():
-            if evento.type == pygame.QUIT:
+            if evento.type==pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             
-            if evento.type == pygame.KEYDOWN:
+            if evento.type==pygame.KEYDOWN:
                 if juego.juego_terminado:
-                    if evento.key == pygame.K_SPACE:
-                        ejecutando_juego = False
+                    if evento.key==pygame.K_SPACE:
+                        ejecutando_juego=False
                 else:
-                    if evento.key == pygame.K_ESCAPE:
-                        ejecutando_juego = False
-                    elif evento.key == pygame.K_UP:
-                        juego.mover_jugador(-1, 0)
-                    elif evento.key == pygame.K_DOWN:
-                        juego.mover_jugador(1, 0)
-                    elif evento.key == pygame.K_LEFT:
-                        juego.mover_jugador(0, -1)
-                    elif evento.key == pygame.K_RIGHT:
-                        juego.mover_jugador(0, 1)
-                    elif evento.key == pygame.K_SPACE:
-                        juego.correr_jugador(0, 1)
-                    elif evento.key == pygame.K_t:
-                        juego.colocar_trampa()
+                    if evento.key==pygame.K_ESCAPE:
+                        ejecutando_juego=False
+
+                    if evento.key==pygame.K_SPACE:
+                        juego.jugador.corriendo=True
+
+                    if evento.key==pygame.K_UP:
+                        juego.mover_jugador(-1,0)
+                    elif evento.key==pygame.K_DOWN:
+                        juego.mover_jugador(1,0)
+                    elif evento.key==pygame.K_LEFT:
+                        juego.mover_jugador(0,-1)
+                    elif evento.key==pygame.K_RIGHT:
+                        juego.mover_jugador(0,1)
+
+            elif evento.type==pygame.KEYUP:
+                if evento.key==pygame.K_SPACE:
+                    juego.jugador.corriendo=False
         
-        #Actualiza el juego
         if not juego.juego_terminado:
             juego.tick()
         
-        #Dibujado
         pantalla.fill(NEGRO)
         
         if not juego.juego_terminado:
-            dibujar_mapa(pantalla, juego, tamaño_celda, offset_x, offset_y)
-            dibujar_trampas(pantalla, juego.jugador.trampas, tamaño_celda, offset_x, offset_y)
-            dibujar_jugador(pantalla, juego.jugador, tamaño_celda, offset_x, offset_y)
-            dibujar_cazadores(pantalla, juego.cazadores, tamaño_celda, offset_x, offset_y)
-            dibujar_ui(pantalla, juego, pantalla.get_width())
+            dibujar_mapa(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_jugador(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_cazadores(pantalla,juego,tamaño_celda,offset_x,offset_y)
+            dibujar_ui(pantalla,juego,pantalla.get_width())
         else:
-            dibujar_game_over(pantalla, juego.resultado, juego.puntos)
+            dibujar_game_over(pantalla,juego.resultado,juego.puntos)
         
         pygame.display.flip()
         reloj.tick(10)
@@ -232,106 +342,160 @@ def modo_escapa_seleccionado(pantalla):
     ANCHO, ALTO = pantalla.get_size()
     fuente_titulo = pygame.font.Font(None, 48)
     
-    cuadro_nombre = CuadroTexto(ANCHO // 2 - 150, ALTO // 2 - 50, 300, 40)
-    
-    def regresar():
-        pass 
-
-    def jugar():
-        iniciar_juego_escapa(pantalla, cuadro_nombre.texto)
-        
-    btn_jugar = Boton(
-        ANCHO // 2 - 100, cuadro_nombre.rect.bottom + 30, 200, 50,
-        "Jugar", VERDE, (0, 200, 0), jugar
+    cuadro_nombre = CuadroTexto(ANCHO // 2 - 150, ALTO // 2 - 60, 300, 40)
+    btn_siguiente = Boton(
+        ANCHO // 2 - 100, cuadro_nombre.rect.bottom + 20,
+        200, 50, "Continuar", VERDE, (0, 200, 0)
     )
-    
     btn_regresar = Boton(
-        ANCHO // 2 - 100, btn_jugar.rect.bottom + 10, 200, 50,
-        "Regresar", ROJO, (200, 0, 0), regresar
+        ANCHO // 2 - 100, btn_siguiente.rect.bottom + 15,
+        200, 50, "Regresar", ROJO, (200, 0, 0)
     )
-    
-    elementos = [btn_jugar, btn_regresar]
-    
-    ejecutando_sub_menu = True
-    while ejecutando_sub_menu:
+
+    etapa = "nombre"
+    nombre_final = ""
+    dificultad_final = None
+
+    btn_facil = Boton(ANCHO//2 - 150, ALTO//2 - 30, 300, 50, "Fácil", VERDE, (0,255,0))
+    btn_medio = Boton(ANCHO//2 - 150, ALTO//2 + 40, 300, 50, "Medio", (200,200,0), (255,255,0))
+    btn_dificil = Boton(ANCHO//2 - 150, ALTO//2 + 110, 300, 50, "Difícil", ROJO, (255,0,0))
+
+    ejecutando = True
+
+    while ejecutando:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            
-            cuadro_nombre.handle_event(evento)
-            
-            if btn_regresar.check_click(evento):
-                ejecutando_sub_menu = False
-            
-            if btn_jugar.check_click(evento):
-                if cuadro_nombre.texto.strip():
-                    ejecutando_sub_menu = False
+
+            if etapa == "nombre":
+                cuadro_nombre.handle_event(evento)
+
+                if btn_siguiente.check_click(evento):
+                    if cuadro_nombre.texto.strip():
+                        nombre_final = cuadro_nombre.texto.strip()
+                        etapa = "dificultad"
+
+                if btn_regresar.check_click(evento):
+                    ejecutando = False
+
+            elif etapa == "dificultad":
+                if btn_facil.check_click(evento):
+                    dificultad_final = "facil"
+                    ejecutando = False
+                if btn_medio.check_click(evento):
+                    dificultad_final = "medio"
+                    ejecutando = False
+                if btn_dificil.check_click(evento):
+                    dificultad_final = "dificil"
+                    ejecutando = False
 
         pantalla.fill(NEGRO)
-        
-        texto_titulo = fuente_titulo.render("Nombre del Jugador", True, BLANCO)
-        rect_titulo = texto_titulo.get_rect(center=(ANCHO // 2, cuadro_nombre.rect.y - 30))
-        pantalla.blit(texto_titulo, rect_titulo)
-        
-        cuadro_nombre.dibujar(pantalla)
-        for elemento in elementos:
-            elemento.dibujar(pantalla)
+
+        if etapa == "nombre":
+            titulo = fuente_titulo.render("Nombre del Jugador", True, BLANCO)
+            pantalla.blit(titulo, (ANCHO//2 - titulo.get_width()//2, cuadro_nombre.rect.y - 50))
+
+            cuadro_nombre.dibujar(pantalla)
+            btn_siguiente.dibujar(pantalla)
+            btn_regresar.dibujar(pantalla)
+
+        elif etapa == "dificultad":
+            titulo = fuente_titulo.render("Selecciona Dificultad", True, BLANCO)
+            pantalla.blit(titulo, (ANCHO//2 - titulo.get_width()//2, ALTO//2 - 120))
+
+            btn_facil.dibujar(pantalla)
+            btn_medio.dibujar(pantalla)
+            btn_dificil.dibujar(pantalla)
 
         pygame.display.flip()
+
+    if nombre_final and dificultad_final:
+        juego = Juego(
+            filas=15,
+            columnas=15,
+            cantidad_cazadores=3,
+            modo="escape",
+            nombre_jugador=nombre_final,
+            dificultad=dificultad_final
+        )
+        iniciar_juego_escapa(pantalla, nombre_final, dificultad_final)
 
 def modo_caza_seleccionado(pantalla):
     ANCHO, ALTO = pantalla.get_size()
     fuente_titulo = pygame.font.Font(None, 48)
     
-    #Elementos de la interfaz
-    cuadro_nombre = CuadroTexto(ANCHO // 2 - 150, ALTO // 2 - 50, 300, 40)
-    
-    def regresar():
-        pass 
+    cuadro_nombre = CuadroTexto(ANCHO // 2 - 150, ALTO // 2 - 60, 300, 40)
 
-    def jugar():
-        iniciar_juego_caza(pantalla, cuadro_nombre.texto)
-        
-    btn_jugar = Boton(
-        ANCHO // 2 - 100, cuadro_nombre.rect.bottom + 30, 200, 50,
-        "Jugar", VERDE, (0, 200, 0), jugar
+    btn_siguiente = Boton(
+        ANCHO // 2 - 100, cuadro_nombre.rect.bottom + 20,
+        200, 50, "Continuar", VERDE, (0, 200, 0)
     )
-    
     btn_regresar = Boton(
-        ANCHO // 2 - 100, btn_jugar.rect.bottom + 10, 200, 50,
-        "Regresar", ROJO, (200, 0, 0), regresar
+        ANCHO // 2 - 100, btn_siguiente.rect.bottom + 15,
+        200, 50, "Regresar", ROJO, (200, 0, 0)
     )
-    
-    elementos = [btn_jugar, btn_regresar]
-    
-    ejecutando_sub_menu = True
-    while ejecutando_sub_menu:
+
+    etapa = "nombre"
+    nombre_final = ""
+    dificultad_final = None
+
+    btn_facil = Boton(ANCHO//2 - 150, ALTO//2 - 30, 300, 50, "Fácil", VERDE, (0,255,0))
+    btn_medio = Boton(ANCHO//2 - 150, ALTO//2 + 40, 300, 50, "Medio", (200,200,0), (255,255,0))
+    btn_dificil = Boton(ANCHO//2 - 150, ALTO//2 + 110, 300, 50, "Difícil", ROJO, (255,0,0))
+
+    ejecutando = True
+
+    while ejecutando:
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            
-            cuadro_nombre.handle_event(evento)
-            
-            if btn_regresar.check_click(evento):
-                ejecutando_sub_menu = False
-            
-            if btn_jugar.check_click(evento):
-                if cuadro_nombre.texto.strip():
-                    ejecutando_sub_menu = False
+
+            if etapa == "nombre":
+                cuadro_nombre.handle_event(evento)
+
+                if btn_siguiente.check_click(evento):
+                    if cuadro_nombre.texto.strip():
+                        nombre_final = cuadro_nombre.texto.strip()
+                        etapa = "dificultad"
+
+                if btn_regresar.check_click(evento):
+                    ejecutando = False
+
+            elif etapa == "dificultad":
+                if btn_facil.check_click(evento):
+                    dificultad_final = "facil"
+                    ejecutando = False
+                if btn_medio.check_click(evento):
+                    dificultad_final = "medio"
+                    ejecutando = False
+                if btn_dificil.check_click(evento):
+                    dificultad_final = "dificil"
+                    ejecutando = False
 
         pantalla.fill(NEGRO)
-        
-        texto_titulo = fuente_titulo.render("Nombre del Jugador", True, BLANCO)
-        rect_titulo = texto_titulo.get_rect(center=(ANCHO // 2, cuadro_nombre.rect.y - 30))
-        pantalla.blit(texto_titulo, rect_titulo)
-        
-        cuadro_nombre.dibujar(pantalla)
-        for elemento in elementos:
-            elemento.dibujar(pantalla)
+
+        if etapa == "nombre":
+            titulo = fuente_titulo.render("Nombre del Jugador", True, BLANCO)
+            pantalla.blit(titulo, (ANCHO//2 - titulo.get_width()//2, cuadro_nombre.rect.y - 50))
+
+            cuadro_nombre.dibujar(pantalla)
+            btn_siguiente.dibujar(pantalla)
+            btn_regresar.dibujar(pantalla)
+
+        elif etapa == "dificultad":
+            titulo = fuente_titulo.render("Selecciona Dificultad", True, BLANCO)
+            pantalla.blit(titulo, (ANCHO//2 - titulo.get_width()//2, ALTO//2 - 120))
+
+            btn_facil.dibujar(pantalla)
+            btn_medio.dibujar(pantalla)
+            btn_dificil.dibujar(pantalla)
 
         pygame.display.flip()
+
+    if nombre_final and dificultad_final:
+        iniciar_juego_caza(pantalla, nombre_final, dificultad_final)
 
 def mostrar_donar(pantalla):
     pantalla_donar_loop(pantalla)
@@ -353,47 +517,27 @@ def esperar_en_pantalla(tiempo_ms):
 def dibujar_lista_puntajes(pantalla, titulo, lista_puntajes, x_centro, y_inicio, fuente_titulo, fuente_item, color_titulo):
     ANCHO_CONTENEDOR = 400
     x_inicio = x_centro - ANCHO_CONTENEDOR // 2
-    
+
     texto_titulo = fuente_titulo.render(titulo, True, color_titulo)
     rect_titulo = texto_titulo.get_rect(center=(x_centro, y_inicio))
     pantalla.blit(texto_titulo, rect_titulo)
-    
-    pygame.draw.line(pantalla, color_titulo, (x_inicio, y_inicio + 30), (x_inicio + ANCHO_CONTENEDOR, y_inicio + 30), 2)
-    
-    y_header = y_inicio + 45
-    texto_header_nombre = fuente_item.render("Nombre:", True, BLANCO)
-    pantalla.blit(texto_header_nombre, (x_inicio + 10, y_header))
-    
-    texto_header_puntos = fuente_item.render("Puntaje:", True, BLANCO)
-    rect_header_puntos = texto_header_puntos.get_rect(right=x_inicio + ANCHO_CONTENEDOR - 10, top=y_header)
-    pantalla.blit(texto_header_puntos, rect_header_puntos)
-    
-    y_actual = y_inicio + 75
-    
-    if not lista_puntajes:
-        texto_vacio = fuente_item.render("Aún no hay puntajes en este modo.", True, GRIS)
-        pantalla.blit(texto_vacio, (x_inicio + 10, y_actual))
-        return y_actual + 40
-        
-    lista_puntajes_ordenada = sorted(
-        lista_puntajes, 
-        key=lambda x: x['puntos'], 
-        reverse=True
-    )[:5] 
 
-    for i, item in enumerate(lista_puntajes_ordenada):
-        nombre = item.get('nombre', 'Desconocido')
-        puntos = item.get('puntos', 0)
-        
-        color_item = VERDE if i == 0 else BLANCO
-        
-        texto_nombre = fuente_item.render(f"{i+1}. {nombre}", True, color_item)
-        pantalla.blit(texto_nombre, (x_inicio + 10, y_actual))
-        
-        texto_puntos = fuente_item.render(str(puntos), True, color_item)
-        rect_puntos = texto_puntos.get_rect(right=x_inicio + ANCHO_CONTENEDOR - 10, top=y_actual)
-        pantalla.blit(texto_puntos, rect_puntos)
-        
+    pygame.draw.line(pantalla, color_titulo, (x_inicio, y_inicio+30), (x_inicio+ANCHO_CONTENEDOR, y_inicio+30), 2)
+
+    y_actual = y_inicio + 60
+
+    if not lista_puntajes:
+        texto_vacio = fuente_item.render("Sin puntajes aún", True, BLANCO)
+        pantalla.blit(texto_vacio, (x_inicio+10, y_actual))
+        return y_actual + 40
+
+    lista_ordenada = sorted(lista_puntajes, key=lambda x: x["puntos"], reverse=True)[:5]
+
+    for i, item in enumerate(lista_ordenada):
+        nombre = item.get("nombre", "???")
+        puntos = item.get("puntos", 0)
+        texto = fuente_item.render(f"{i+1}. {nombre} - {puntos}", True, BLANCO)
+        pantalla.blit(texto, (x_inicio+10, y_actual))
         y_actual += 30
 
     return y_actual + 15
@@ -429,7 +573,7 @@ def pantalla_donar_loop(pantalla):
         rect_mensaje = texto_mensaje.get_rect(center=(ANCHO // 2, 180))
         pantalla.blit(texto_mensaje, rect_mensaje)
 
-        mensaje = "@issacem13 y @brunobc03"
+        mensaje = "@isaac_em13 y @brunobc03"
         texto_mensaje = fuente_mensaje.render(mensaje, True, BLANCO)
         rect_mensaje = texto_mensaje.get_rect(center=(ANCHO // 2, 220))
         pantalla.blit(texto_mensaje, rect_mensaje)
@@ -439,14 +583,10 @@ def pantalla_donar_loop(pantalla):
 
 def pantalla_puntajes_loop(pantalla):
     ANCHO, ALTO = pantalla.get_size()
-    try:
-        puntajes_data = cargar_puntajes()
-    except Exception as e:
-        print(f"No hay puntajes aún: {e}")
-        puntajes_data = {"escape": [], "cazador": []}
-        
-    lista_escape = puntajes_data.get("escape", [])
-    lista_cazador = puntajes_data.get("cazador", [])
+    puntajes_data = cargar_puntajes()
+
+    lista_escape=puntajes_data.get("escape", [])
+    lista_cazador=puntajes_data.get("cazador", [])
     
     fuente_titulo_modo = pygame.font.Font(None, 48)
     fuente_item = pygame.font.Font(None, 30)

@@ -61,6 +61,9 @@ class Salida(Terreno):
     def permiteJugador(self):
         return True
 
+    def permiteCazador(self):
+        return True
+    
 #clase Mapa para generar la matriz del laberinto
 
 class Mapa:
@@ -185,35 +188,61 @@ class Trampa:
 #clase Jugador(hijo de entidad)
 
 class Jugador(Entidad):
-    def __init__(self, fila, columna, mapa):
-        super().__init__(fila, columna, mapa, 'juega')
-
+    def __init__(self,fila,columna,mapa):
+        super().__init__(fila,columna,mapa,'juega')
+        self.corriendo=False
         self.energia=100
         self.energiamax=100
         self.trampas=[]
         self.ultimo=0
         self.recarga=5
         self.trampasmax=3
-    
-    def correr(self, nfilas, ncolumnas):
-        if self.energia<=0:
-            return False
-        
-        filasegui=self.fila+nfilas*2
-        columnasegui=self.columna+ncolumnas*2
+        self.tiempo_ultimo_mov=0
+        self.cooldown_mov=0.5
+        self.tiempo_ultima_recarga=time.time()
 
-        if self.puedeMover(filasegui, columnasegui):
-            self.fila=filasegui
-            self.columna=columnasegui
-            self.energia-=10
-            return True
-        return False
+    def mover(self,df,dc,cazadores):
+        ahora=time.time()
+        if not self.corriendo:
+            if ahora-self.tiempo_ultimo_mov<self.cooldown_mov:
+                return False
+
+        nueva_fila=self.fila+df
+        nueva_columna=self.columna+dc
+
+        if not self.puedeMover(nueva_fila,nueva_columna):
+            return False
+
+        for caz in cazadores:
+            if caz.vivo and caz.fila==nueva_fila and caz.columna==nueva_columna:
+                return False
+
+        self.fila=nueva_fila
+        self.columna=nueva_columna
+
+        if not self.corriendo:
+            self.tiempo_ultimo_mov=ahora
+        else:
+            if self.energia>=10:
+                self.energia-=10
+            else:
+                self.corriendo=False
+
+        return True
 
     def recuperarEnergia(self):
-        if self.energia<self.energiamax:
-            self.energia+=5
+        if self.corriendo:
+            return
 
-    def colocarTrampa(self, modo):
+        ahora=time.time()
+        if ahora-self.tiempo_ultima_recarga>=1.5:
+            if self.energia<self.energiamax:
+                self.energia+=5
+                if self.energia>self.energiamax:
+                    self.energia=self.energiamax
+            self.tiempo_ultima_recarga=ahora
+
+    def colocarTrampa(self,modo):
         if modo!="escape":
             return False
 
@@ -224,11 +253,11 @@ class Jugador(Entidad):
         if len(self.trampas)>=self.trampasmax:
             return False
         
-        terreno=self.mapa.obtenerTerreno(self.fila, self.columna)
+        terreno=self.mapa.obtenerTerreno(self.fila,self.columna)
         if not terreno.permiteTrampa():
             return False
         
-        trampa=Trampa(self.fila, self.columna, self.mapa)
+        trampa=Trampa(self.fila,self.columna,self.mapa)
         self.trampas.append(trampa)
         self.ultimo=ahora
         return True
@@ -236,183 +265,221 @@ class Jugador(Entidad):
     def limpiarTrampas(self):
         self.trampas=[i for i in self.trampas if i.activa]
 
-    def mover(self, df, dc):
-        nueva_fila=self.fila+df
-        nueva_columna=self.columna+dc
-        
-        if self.puedeMover(nueva_fila, nueva_columna):
-            self.fila=nueva_fila
-            self.columna=nueva_columna
-            return True
-        return False
-
     def estaEnSalida(self):
-        return (self.fila, self.columna)==self.mapa.salida
+        return (self.fila,self.columna)==self.mapa.salida
+    #para el modo caza
+    def colocar_en_salida(self):
+        self.fila=self.mapa.salida[0]
+        self.columna=self.mapa.salida[1]
 
 #clase Cazador (hijo)
 
 class Cazador(Entidad):
-    def __init__(self, fila, columna, mapa):
-        super().__init__(fila, columna, mapa, 'caza')
+    def __init__(self,fila,columna,mapa):
+        super().__init__(fila,columna,mapa,'caza')
         self.vivo=True
         self.t_muerte=None
 
-    def bfs(self, jugador):
-        inicio=(self.fila, self.columna)
-        objetivo=(jugador.fila, jugador.columna)
-
+    def bfs(self,jugador):
+        inicio=(self.fila,self.columna)
+        objetivo=(jugador.fila,jugador.columna)
         if inicio==objetivo:
-            return None  
-
+            return None
         cola=[inicio]
         visitado=[[False for _ in range(self.mapa.columnas)] for _ in range(self.mapa.filas)]
         padre=[[None for _ in range(self.mapa.columnas)] for _ in range(self.mapa.filas)]
         visitado[inicio[0]][inicio[1]]=True
-        semueve=[(1,0), (-1,0), (0,1), (0,-1)]
-
+        movs=[(1,0),(-1,0),(0,1),(0,-1)]
         while cola:
-            f, c=cola.pop(0)
-            if (f, c)==objetivo:
+            f,c=cola.pop(0)
+            if (f,c)==objetivo:
                 break
-
-            for fs, cs in semueve:
-                ffs= f+fs
-                ccs= c+cs
-
-                if self.mapa.enLimites(ffs, ccs) and not visitado[ffs][ccs]:
-                    terreno=self.mapa.obtenerTerreno(ffs, ccs)
-
+            for df,dc in movs:
+                nf=f+df
+                nc=c+dc
+                if self.mapa.enLimites(nf,nc) and not visitado[nf][nc]:
+                    terreno=self.mapa.obtenerTerreno(nf,nc)
                     if terreno.permiteCazador():
-                        visitado[ffs][ccs]=True
-                        padre[ffs][ccs]=(f, c)
-                        cola.append((ffs, ccs))
-
+                        visitado[nf][nc]=True
+                        padre[nf][nc]=(f,c)
+                        cola.append((nf,nc))
         if not visitado[objetivo[0]][objetivo[1]]:
             return None
-
         camino=[]
         paso=objetivo
-
         while paso!=inicio:
             camino.append(paso)
             paso=padre[paso[0]][paso[1]]
         camino.reverse()
         return camino
-    
-    def perseguir(self, jugador):
+
+    def perseguir(self,jugador):
         camino=self.bfs(jugador)
-
-        if camino==None or len(camino)==0:
+        if camino is None or len(camino)==0:
             return
-        siguiente=camino[0]
-        if self.puedeMover(siguiente[0], siguiente[1]):
-            self.fila, self.columna=siguiente
+        nf,nc=camino[0]
+        if self.puedeMover(nf,nc):
+            self.fila=nf
+            self.columna=nc
 
-    def huir(self, jugador):
+    def huir(self,jugador):
         opciones=[(0,0),(1,0),(-1,0),(0,1),(0,-1)]
-        mejor_dist=-1
-        mejor_pos=(self.fila,self.columna)
-
+        mejor=-1
+        pos=(self.fila,self.columna)
         for df,dc in opciones:
             nf=self.fila+df
             nc=self.columna+dc
             if self.puedeMover(nf,nc):
-                dist=abs(nf-jugador.fila)+abs(nc-jugador.columna)
-                if dist>mejor_dist:
-                    mejor_dist=dist
-                    mejor_pos=(nf,nc)
+                d=abs(nf-jugador.fila)+abs(nc-jugador.columna)
+                if d>mejor:
+                    mejor=d
+                    pos=(nf,nc)
+        self.fila,self.columna=pos
 
-        self.fila,self.columna=mejor_pos
+    def mover_hacia_meta(self,meta):
+        mf,mc=meta
+        mejor=None
+        dist=999
+        movs=[(1,0),(-1,0),(0,1),(0,-1)]
+        for df,dc in movs:
+            nf=self.fila+df
+            nc=self.columna+dc
+            if self.puedeMover(nf,nc):
+                d=abs(nf-mf)+abs(nc-mc)
+                if d<dist:
+                    dist=d
+                    mejor=(nf,nc)
+        if mejor:
+            self.fila,self.columna=mejor
 
-    def verificarTrampa(self, jugador):
+    def verificarTrampa(self,jugador):
         for t in jugador.trampas:
             if t.activa and t.fila==self.fila and t.columna==self.columna:
                 t.activa=False
                 return True
         return False
-    
-    def resurgir(self, jugador):
-        posiciones_validas=[]
-        for i in range(self.mapa.filas):
-            for j in range(self.mapa.columnas):
-                terreno=self.mapa.obtenerTerreno(i,j)
-                if (terreno.permiteCazador() and 
-                    abs(i-jugador.fila)+abs(j-jugador.columna)>5):
-                    posiciones_validas.append((i,j))
 
-        if posiciones_validas:
-            self.fila, self.columna=random.choice(posiciones_validas)
-
-#clase juego principal para que funcionen las demas clases juntas
-class Juego:
-    def __init__(self, filas=10, columnas=10, cantidad_cazadores=2, modo="escape", nombre_jugador="Jugador"):
-        self.mapa=Mapa(columnas,filas)
-
-        self.nombre_jugador=nombre_jugador
-
-        self.jugador=Jugador(2, 1, self.mapa)
-        
-        if modo=="cazador":
-            self.jugador.recarga=999999
-            self.jugador.trampasmax=0
-        
-        self.cazadores=[]
-        for _ in range(cantidad_cazadores):
-            f,c=self.buscar_posicion_cazador()
-            self.cazadores.append(Cazador(f,c,self.mapa))
-
-        self.juego_terminado=False
-        self.resultado=None
-        self.modo=modo
-        self.tiempo_inicio=time.time()
-        self.puntos=0
-
-        self.cazadores_capturados=0
-        self.meta_cazadores=5
-        self.puntos_perdida_salida=50
-        self.puntos_ganancia_captura=self.puntos_perdida_salida*2
-        self.bono_trampa=20
-
-    def buscar_posicion_cazador(self):
-        intentos=0
-        while intentos<50:
-            fila=random.randint(0,self.mapa.filas-1)
-            columna=random.randint(0,self.mapa.columnas-1)
-            terreno=self.mapa.obtenerTerreno(fila,columna)
-            
-            if terreno.permiteCazador():
-                return fila,columna
-            intentos+=1
-        
+    def resurgir(self,jugador):
+        posiciones=[]
         for i in range(self.mapa.filas):
             for j in range(self.mapa.columnas):
                 terreno=self.mapa.obtenerTerreno(i,j)
                 if terreno.permiteCazador():
-                    return i,j
+                    if abs(i-jugador.fila)+abs(j-jugador.columna)>5:
+                        posiciones.append((i,j))
+        if posiciones:
+            self.fila,self.columna=random.choice(posiciones)
+
+#clase juego principal para que funcionen las demas clases juntas
+class Juego:
+    def __init__(self, filas=10, columnas=10, cantidad_cazadores=2, modo="escape", nombre_jugador="Jugador", dificultad=None):
+        if modo not in ["escape","cazador"]:
+            modo="escape"
+        self.mapa=Mapa(columnas, filas)
+        self.nombre_jugador=nombre_jugador
+        self.jugador=Jugador(1, 1, self.mapa)
+        self.modo=modo
+        self.jugador.modo=self.modo
+        self.dificultad=dificultad
+        
+        if modo=="escape":
+            self.configurar_dificultad_escape()
+            cantidad_cazadores=self.cantidad_cazadores_inicial
+        else:
+            self.jugador.recarga=999999
+            self.jugador.trampasmax=0
+            self.jugador.colocar_en_salida()
+            self.configurar_dificultad_cazador()
+            cantidad_cazadores=self.cantidad_cazadores_inicial
+        self.cazadores=[]
+        for _ in range(cantidad_cazadores):
+            if self.modo=="cazador":
+                f, c=self.buscar_posicion_cazador_modo_caza()
+            else:
+                f, c=self.buscar_posicion_cazador()
+            self.cazadores.append(Cazador(f, c, self.mapa))
+        self.contador_movimiento_cazadores=0
+        self.juego_terminado=False
+        self.resultado=None
+        self.tiempo_inicio=time.time()
+        self.puntos=0
+        self.cazadores_capturados=0
+        self.ultima_dir=(0, 1)
+
+    def configurar_dificultad_escape(self):
+        if self.dificultad=="facil":
+            self.cantidad_cazadores_inicial=2
+            self.puntos_ganar=200
+            self.puntos_trampa=60
+            self.frecuencia_movimiento_cazadores=7
+        elif self.dificultad=="medio":
+            self.cantidad_cazadores_inicial=3
+            self.puntos_ganar=400
+            self.puntos_trampa=120
+            self.frecuencia_movimiento_cazadores=6
+        elif self.dificultad=="dificil":
+            self.cantidad_cazadores_inicial=5
+            self.puntos_ganar=600
+            self.puntos_trampa=180
+            self.frecuencia_movimiento_cazadores=5
+
+    def configurar_dificultad_cazador(self):
+        if self.dificultad=="facil":
+            self.cantidad_cazadores_inicial=2
+            self.puntos_ganancia_captura=100
+            self.puntos_perdida_salida=200
+            self.frecuencia_movimiento_cazadores=7
+            self.meta_cazadores=5
+        elif self.dificultad=="medio":
+            self.cantidad_cazadores_inicial=3
+            self.puntos_ganancia_captura=300
+            self.puntos_perdida_salida=600
+            self.frecuencia_movimiento_cazadores=6
+            self.meta_cazadores=10
+        elif self.dificultad=="dificil":
+            self.cantidad_cazadores_inicial=5
+            self.puntos_ganancia_captura=600
+            self.puntos_perdida_salida=1200
+            self.frecuencia_movimiento_cazadores=5
+            self.meta_cazadores=15
+
+    def buscar_posicion_cazador(self):
+        dist_min=6
+        intentos=0
+        while intentos<200:
+            f=random.randint(0,self.mapa.filas-1)
+            c=random.randint(0,self.mapa.columnas-1)
+            terreno=self.mapa.obtenerTerreno(f,c)
+            if terreno.permiteCazador():
+                if abs(f-self.jugador.fila)+abs(c-self.jugador.columna)>=dist_min:
+                    return f,c
+            intentos+=1
+        for i in range(self.mapa.filas):
+            for j in range(self.mapa.columnas):
+                terreno=self.mapa.obtenerTerreno(i,j)
+                if terreno.permiteCazador():
+                    if abs(i-self.jugador.fila)+abs(j-self.jugador.columna)>=dist_min:
+                        return i,j
         return self.mapa.filas-1,self.mapa.columnas-1
 
-    def registrar_puntaje(self):
-        if not self.juego_terminado:
-            return
+    def buscar_posicion_cazador_modo_caza(self):
+        meta=self.mapa.salida
+        while True:
+            f=random.randint(0,self.mapa.filas-1)
+            c=random.randint(0,self.mapa.columnas-1)
+            terreno=self.mapa.obtenerTerreno(f,c)
+            if terreno.permiteCazador():
+                if abs(f-meta[0])+abs(c-meta[1])>=12:
+                    return f,c
 
-        puntajes=cargar_puntajes()
-
-        if self.modo not in puntajes:
-            puntajes[self.modo]=[]
-
-        entrada={
-            "nombre":self.nombre_jugador,
-            "puntos":self.puntos,
-            "tiempo":int(self.obtener_tiempo_transcurrido()),
-            "resultado":self.resultado
-        }
-        puntajes[self.modo].append(entrada)
-
-        puntajes[self.modo].sort(key=lambda x:x["puntos"],reverse=True)
-
-        puntajes[self.modo]=puntajes[self.modo][:5]
-
-        guardar_puntajes(puntajes)
+    def actualizar_cazadores_modo_caza(self):
+        meta=self.mapa.salida
+        for cazador in self.cazadores:
+            dist=abs(cazador.fila-self.jugador.fila)+abs(cazador.columna-self.jugador.columna)
+            if dist<=3:
+                cazador.huir(self.jugador)
+            else:
+                cazador.mover_hacia_meta(meta)
 
     @staticmethod
     def obtener_top5(modo):
@@ -421,75 +488,118 @@ class Juego:
             return []
         return puntajes[modo]
 
-    def mover_jugador(self, df, dc):
+    def registrar_puntaje(self):
+        if not self.juego_terminado:
+            return
+
+        puntajes=cargar_puntajes()
+        if self.modo not in puntajes:
+            puntajes[self.modo] = []
+
+        entrada ={
+        "nombre": self.nombre_jugador,
+        "puntos": self.puntos,
+        "tiempo": int(self.obtener_tiempo_transcurrido()),
+        "resultado": self.resultado
+        }
+
+        puntajes[self.modo].append(entrada)
+        puntajes[self.modo].sort(key=lambda x: x["puntos"], reverse=True)
+        puntajes[self.modo]=puntajes[self.modo][:5]
+
+        guardar_puntajes(puntajes)
+
+
+    def mover_jugador(self,df,dc):
         if self.juego_terminado:
             return False
-
-        exito=self.jugador.mover(df,dc)
-        if exito:
-            self.verificar_estado()
-        return exito
-
-    def correr_jugador(self, df, dc):
-        if self.juego_terminado:
+        if self.modo=="cazador":
+            nueva_fila=self.jugador.fila+df
+            nueva_columna=self.jugador.columna+dc
+            if not self.mapa.enLimites(nueva_fila,nueva_columna):
+                return False
+            terreno=self.mapa.obtenerTerreno(nueva_fila,nueva_columna)
+            if not terreno.permiteJugador():
+                return False
+            objetivo=None
+            for cazador in self.cazadores:
+                if cazador.fila==nueva_fila and cazador.columna==nueva_columna:
+                    objetivo=cazador
+                    break
+            if objetivo is not None:
+                self.jugador.fila=nueva_fila
+                self.jugador.columna=nueva_columna
+                self.cazadores_capturados+=1
+                self.puntos+=self.puntos_ganancia_captura
+                pos=self.buscar_posicion_cazador_modo_caza()
+                objetivo.fila, objetivo.columna=pos
+                self.ultima_dir=(df,dc)
+                self.verificar_estado()
+                return True
+            if self.jugador.mover(df,dc,self.cazadores):
+                self.ultima_dir=(df,dc)
+                self.verificar_estado()
+                return True
+            return False
+        else:
+            if self.jugador.mover(df,dc,self.cazadores):
+                self.ultima_dir=(df,dc)
+                self.verificar_estado()
+                return True
             return False
 
-        exito=self.jugador.correr(df,dc)
-        if exito:
-            self.verificar_estado()
-        return exito
+    def correr_jugador(self):
+        if self.juego_terminado:
+            return False
+        self.jugador.corriendo=True
+        return True
 
     def colocar_trampa(self):
         if self.juego_terminado:
             return False
-
-        return self.jugador.colocarTrampa(self.modo)
+        x=self.jugador.colocarTrampa(self.modo)
+        if not x:
+            return False
+        if self.modo=="escape":
+            self.puntos+=self.puntos_trampa
+        return True
 
     def actualizar_cazadores(self):
         if self.juego_terminado:
             return
-
-        ahora=time.time()
-
-        for cazador in self.cazadores:
-            if self.modo=="escape":
+        if self.frecuencia_movimiento_cazadores!=-1:
+            self.contador_movimiento_cazadores+=1
+            if self.contador_movimiento_cazadores<self.frecuencia_movimiento_cazadores:
+                return
+            self.contador_movimiento_cazadores=0
+        if self.modo=="escape":
+            ahora=time.time()
+            for cazador in self.cazadores:
                 if not cazador.vivo:
                     if cazador.t_muerte is not None and ahora-cazador.t_muerte>=10:
                         cazador.resurgir(self.jugador)
                         cazador.vivo=True
                         cazador.t_muerte=None
                     continue
-
                 if cazador.verificarTrampa(self.jugador):
                     cazador.vivo=False
                     cazador.t_muerte=ahora
-                    self.puntos+=self.bono_trampa
+                    self.cazadores_capturados+=1
                     continue
-
                 cazador.perseguir(self.jugador)
-            else:
-                cazador.huir(self.jugador)
-
-        self.verificar_estado()
-
-    def verificar_estado(self):
-        if self.modo=="escape":
-            self._verificar_modo_escape()
         else:
-            self._verificar_modo_cazador()
+            self.actualizar_cazadores_modo_caza()
+        self.verificar_estado()
 
     def _verificar_modo_escape(self):
         if self.jugador.estaEnSalida():
             self.juego_terminado=True
             self.resultado="ganaste"
-            self.puntos=self.calcular_puntos_escape()
+            self.puntos=self.puntos_ganar+self.puntos_trampa*self.cazadores_capturados
             self.registrar_puntaje()
             return
-
-        for cazador in self.cazadores:
-            if (cazador.vivo and
-                cazador.fila==self.jugador.fila and
-                cazador.columna==self.jugador.columna):
+        for caz in self.cazadores:
+            if caz.vivo and caz.fila==self.jugador.fila and caz.columna==self.jugador.columna:
                 self.juego_terminado=True
                 self.resultado="perdiste"
                 self.registrar_puntaje()
@@ -499,36 +609,26 @@ class Juego:
         for cazador in self.cazadores:
             if (cazador.fila,cazador.columna)==self.mapa.salida:
                 self.puntos-=self.puntos_perdida_salida
-                if self.puntos<0:
-                    self.puntos=0
-                cazador.resurgir(self.jugador)
-
+                pos=self.buscar_posicion_cazador_modo_caza()
+                cazador.fila, cazador.columna=pos
         for cazador in self.cazadores:
-            if (self.jugador.fila==cazador.fila and
-                self.jugador.columna==cazador.columna):
+            if self.jugador.fila==cazador.fila and self.jugador.columna==cazador.columna:
                 self.cazadores_capturados+=1
                 self.puntos+=self.puntos_ganancia_captura
-                cazador.resurgir(self.jugador)
+                pos=self.buscar_posicion_cazador_modo_caza()
+                cazador.fila, cazador.columna=pos
                 break
-
         if self.cazadores_capturados>=self.meta_cazadores:
             self.juego_terminado=True
             self.resultado="ganaste"
             self.registrar_puntaje()
             return
 
-        if self.jugador.energia<=0:
-            self.juego_terminado=True
-            self.resultado="perdiste"
-            self.registrar_puntaje()
-            return
-
-    def calcular_puntos_escape(self):
-        tiempo_transcurrido=time.time()-self.tiempo_inicio
-        puntos_tiempo=max(0,1000-int(tiempo_transcurrido)*10)
-        puntos_energia=self.jugador.energia*2
-        factor_dificultad=1+(len(self.cazadores)-1)*0.5
-        return int((puntos_tiempo+puntos_energia)*factor_dificultad)
+    def verificar_estado(self):
+        if self.modo=="escape":
+            self._verificar_modo_escape()
+        else:
+            self._verificar_modo_cazador()
 
     def obtener_estado_juego(self):
         return {
@@ -549,25 +649,21 @@ class Juego:
             self.jugador.recuperarEnergia()
             self.jugador.limpiarTrampas()
             self.actualizar_cazadores()
-            
-            if self.modo=="cazador" and not self.juego_terminado:
-                self.puntos+=1
 
     def reiniciar(self, modo=None, nombre_jugador=None):
         if modo:
             self.modo=modo
         if nombre_jugador is None:
             nombre_jugador=self.nombre_jugador
-            
         self.__init__(
             filas=self.mapa.filas,
             columnas=self.mapa.columnas,
             cantidad_cazadores=len(self.cazadores),
             modo=self.modo,
-            nombre_jugador=nombre_jugador
+            nombre_jugador=nombre_jugador,
+            dificultad=self.dificultad
         )
 
-#funciones aparte para guardar los registros de puntajes en un archivo
 archivo_puntos="puntajes.json"
 
 def cargar_puntajes():
@@ -581,7 +677,23 @@ def cargar_puntajes():
     if contenido.strip()=="":
         return {"escape": [], "cazador": []}
 
-    return json.loads(contenido)
+    data=json.loads(contenido)
+    limpio={"escape": [], "cazador": []}
+
+    for modo in ["escape", "cazador"]:
+        lista=data.get(modo, [])
+        for item in lista:
+            if isinstance(item, dict):
+                limpio[modo].append(item)
+            else:
+                limpio[modo].append({
+                    "nombre": "Jugador",
+                    "puntos": int(item),
+                    "tiempo": 0,
+                    "resultado": "desconocido"
+                })
+
+    return limpio
 
 def guardar_puntajes(puntajes):
     texto=json.dumps(puntajes, indent=4)
